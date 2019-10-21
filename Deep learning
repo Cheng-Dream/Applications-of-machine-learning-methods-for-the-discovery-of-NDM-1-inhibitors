@@ -1,0 +1,188 @@
+from keras.models import Model
+import keras
+from keras import layers
+from keras import  Input
+import pandas as pd
+import numpy as np
+import string
+from keras import optimizers
+
+
+data=pd.read_csv("/home/zh/NDM-1/1.csv")
+xulie=data["SMILES"]
+xingzhi=data["properties"]
+label=data["labels"]
+
+xulie=np.asarray(xulie)
+xingzhi=np.asarray(xingzhi)
+label=np.asarray(label)
+
+
+
+test_x1=xulie[:250]
+test_x2=xingzhi[:250]
+test_y=label[:250]
+
+# Train set and val set
+train_val_x1=xulie[250:]
+train_val_x2=xingzhi[250:]
+train_val_y=label[250:]
+
+#data_to_one_hot
+def data_to_one_hot(data1):
+    characters=string.printable
+    token_index=dict(zip(range(1,len(characters)+1),characters))
+
+    ma=550
+    results=np.zeros((len(data1),ma,max(token_index.keys())+1))
+    for i,datas in enumerate(data1):
+        for j,character in enumerate(datas):
+            index=token_index.get(character)
+            results[i,j,index]=1
+    return results
+
+actural_train_val_x1=data_to_one_hot(train_val_x1)
+# print(actural_train_val_x1.shape)
+Test_x1=data_to_one_hot(test_x1)
+actural_train_val_x2=data_to_one_hot(train_val_x2)
+print(actural_train_val_x1.shape[-1])
+Test_x2=data_to_one_hot(test_x2)
+
+actural_train_val_y=keras.utils.to_categorical(train_val_y,3)#.reshape(3811,7,1)
+Test_y=keras.utils.to_categorical(test_y,3)#.reshape(200,7,1)
+# print(Test_label.shape,Test_x1.shape)
+# print(Test_label.dtype,Test_x1.dtype)
+
+def multi_input_model():
+   
+    xulie_input= Input(shape=(550,101), name='input1')
+    xingzhi_input= Input(shape=(550,101), name='input2')
+
+    # x1 = layers.Conv1D(32, 7, activation="relu")(xulie_input)
+    # x1 = layers.MaxPool1D(5)(x1)
+    # x1 = layers.Dropout(0.5)(x1)
+    # x1 = layers.Conv1D(32, 7, activation="relu")(x1)
+    # x1 = layers.MaxPool1D(5)(x1)
+    # x1 = layers.Dropout(0.5)(x1)
+    x1 = layers.GRU(32,return_sequences=True,dropout=0.1,activation="relu")(xulie_input)
+
+
+
+    # x1 = layers.Conv1D(32, 7, activation="relu")(x1)
+    # x1 = layers.MaxPool1D(5)(x1)
+    # x1 = layers.Dropout(0.5)(x1)
+    # x2 = layers.Flatten()(x2)
+    # x1 = layers.GRU(64,dropout=0.2,recurrent_dropout=0.2)(xulie_input)
+    # x1 = layers.GRU(32,dropout=0.2,recurrent_dropout=0.5)(x1)
+
+    x2 = layers.Conv1D(32, 7, activation="relu")(xingzhi_input)
+    x2 = layers.MaxPool1D(5)(x2)
+    x2 = layers.Dropout(0.5)(x2)
+    x2 = layers.Conv1D(32, 7, activation="relu")(x2)
+    x2 = layers.MaxPool1D(5)(x2)
+    x2 = layers.Dropout(0.5)(x2)
+    # x2 = layers.Conv1D(32, 7, activation="relu")(x2)
+    # x2 = layers.MaxPool1D(5)(x2)
+    # x2 = layers.Dropout(0.5)(x2)
+    # x2 = layers.Flatten()(x2)
+
+    x = layers.concatenate([x1, x2],axis=1)
+    x = layers.Flatten()(x)
+    #x = layers.GRU(32, dropout=0.1, recurrent_dropout= 0.5)(x)
+    x = layers.Dense(16, activation='relu')(x)
+
+    output = layers.Dense(3, activation='softmax', name='output')(x)
+
+    model = Model(inputs=[xulie_input,xingzhi_input], outputs=[output])
+
+    model.compile(optimizer=optimizers.RMSprop(lr=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
+    return model
+
+
+callbacks_list=[keras.callbacks.ModelCheckpoint(filepath="/home/zh/CNN-GRU:1,3fenlei",monitor="val_loss",save_best_only=True,)]
+validation_scores=[]
+train_scores=[]
+
+
+
+# network.add(layers.Conv1D(128, 7, activation="relu"))
+#     network.add(layers.MaxPool1D(5))
+#     network.add(layers.Dropout(0.5))
+#     network.add(layers.Conv1D(64, 7, activation="relu"))
+#     network.add(layers.MaxPool1D(5))
+#     network.add(layers.Flatten())
+
+g=[]
+k=5
+num_val_samples1=len(actural_train_val_x1)//k
+# num_val_samples2=len(actural_train_val_x2)//k
+num_epochs=50
+for i in range(k):
+    print("processing fold #",i)
+   
+    # index = ([z for z in range(len(actural_train_val_x))])
+    # np.random.shuffle(index)
+    # index=np.array(index)
+    # Actual_train_val_x= np.array(actural_train_val_x)[index]
+    # Actual_train_val_y= np.array(actural_train_val_Labels)[index]
+
+   
+    val_data1=actural_train_val_x1[i*num_val_samples1:(i+1)*num_val_samples1]
+    val_data2 = actural_train_val_x2[i * num_val_samples1:(i + 1) * num_val_samples1]
+    val_labels=actural_train_val_y[i*num_val_samples1:(i+1)*num_val_samples1]
+
+   
+    partical_train_data1=np.concatenate([actural_train_val_x1[:i*num_val_samples1],actural_train_val_x1[(i+1)*num_val_samples1:]],axis=0)
+    partical_train_data2 = np.concatenate([actural_train_val_x2[:i * num_val_samples1], actural_train_val_x2[(i + 1) * num_val_samples1:]], axis=0)
+    # print(partical_train_data.shape[1])
+
+   
+    partical_train_labels=np.concatenate([actural_train_val_y[:i*num_val_samples1],actural_train_val_y[(i+1)*num_val_samples1:]],axis=0)
+
+    model = multi_input_model()
+    # history = model.fit(partical_train_data, partical_train_labels,validation_data=(val_data, val_labels), epochs=num_epochs, batch_size=16)
+    history=model.fit([partical_train_data1,partical_train_data2],partical_train_labels,callbacks=callbacks_list,validation_data=([val_data1,val_data2],val_labels),epochs=num_epochs,batch_size=32)
+    validation_scores.append(history.history["val_acc"])
+    train_scores.append(history.history["acc"])
+
+validation_score=np.average(validation_scores)
+train_score=np.average(train_scores)
+print(validation_score)
+print(train_score)
+result=model.evaluate([Test_x1,Test_x2],Test_y)
+print(result)
+    # g.append(result)
+# model.save("/home/zh/NDM-1/model1/500,CNN3,GRU1")
+# print(np.mean(g))
+
+
+
+
+history_dict=history.history
+
+
+
+
+import  matplotlib.pyplot as plt
+
+loss=history.history["loss"]
+val_loss=history.history["val_loss"]
+epochs=range(1,len(loss)+1)
+plt.plot(epochs,loss,'bo',label="Training loss")
+plt.plot(epochs,val_loss,'r',label="Validation loss")
+plt.title("Training and validation loss")
+plt.xlabel("Epochs")
+plt.ylabel("Loss")
+plt.legend()
+plt.show()
+
+acc=history.history["acc"]
+val_acc=history.history["val_acc"]
+
+plt.plot(epochs,acc,'go',label="Training acc")
+plt.plot(epochs,val_acc,'y',label="Validation acc")
+plt.title("Training and validation acc")
+plt.xlabel("Epochs")
+plt.ylabel("Accuracy")
+plt.legend()
+plt.show()
