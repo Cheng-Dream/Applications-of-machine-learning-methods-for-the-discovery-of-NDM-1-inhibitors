@@ -1,0 +1,162 @@
+library(tidyverse)
+set.seed(666)
+
+# df <- read_csv("2019-9-12-total.csv", col_names = T)
+# df <- select(df, index, label, everything())
+# df$label <- as.factor(df$label)
+# 
+# n_training <- nrow(df) * 0.6
+# n_validating <- nrow(df) * 0.2
+# n_test <- nrow(df) * 0.2
+# 
+# df_training <- filter(df, index %in% sample(df$index, n_training))
+# df_validating <- filter(df, index %in% sample(setdiff(df, df_training)$index, n_validating))
+# df_test <- setdiff(df, df_training) %>% setdiff(df_validating)
+# 
+# write_csv(df_training, "2019-9-11-df_training.csv")
+# write_csv(df_validating, "2019-9-11-df_validating.csv")
+# write_csv(df_test, "2019-9-11-df_test.csv")
+
+df_training <- read_csv("2019-9-11-df_training.csv")
+df_validating <- read_csv("2019-9-11-df_validating.csv")
+df_test <- read_csv("2019-9-11-df_test.csv")
+
+df_training$label <- as.factor(df_training$label)
+df_validating$label <- as.factor(df_validating$label)
+df_test$label <- as.factor(df_test$label)
+
+df_training <- select(df_training, -index)
+df_validating <- select(df_validating, -index)
+df_test <- select(df_test, -index)
+
+
+library(e1071)
+model_svm <- svm(label ~ ., data = df_training, kernal = "sigmoid")
+
+(z0 <- table(df_training$label, predict(model_svm, df_training)))
+(E0 <- (sum(z0) - sum(diag(z0))) / sum(z0))
+
+(z1 <- table(df_validating$label, predict(model_svm, df_validating)))
+(E1 <- (sum(z1) - sum(diag(z1))) / sum(z1))
+
+(z2 <- table(df_test$label, predict(model_svm, df_test)))
+(E2 <- (sum(z2) - sum(diag(z2))) / sum(z2))
+
+#confusionMatrix(df_test$label, predict(model_svm, df_test))
+save(model_svm, file='model_svm.RData')
+# bootstrap method
+
+# sample_n(df_training, size = 10000, replace = T)
+# model_svm <- svm(label ~ ., data = sample_n(df_training, size = 50000, replace = T), kernal = "sigmoid")
+# (z0 <- table(df_training$label, predict(model_svm, df_training)))
+# (E0 <- (sum(z0) - sum(diag(z0))) / sum(z0))
+# 
+# (z1 <- table(df_validating$label, predict(model_svm, df_validating)))
+# (E1 <- (sum(z1) - sum(diag(z1))) / sum(z1))
+# 
+# model_rf <- randomForest(label ~ ., data = sample_n(df_training, size = 10000, replace = T), importance = T, proximity = T)
+# (z0 <- table(df_training$label, predict(model_rf, df_training)))
+# (E0 <- (sum(z0) - sum(diag(z0))) / sum(z0))
+# 
+# (z2 <- table(df_test$label, predict(model_rf, df_test)))
+# (E2 <- (sum(z2) - sum(diag(z2))) / sum(z2))
+
+
+
+library(randomForest)
+model_rf <- randomForest(label ~ ., data = df_training, importance = T, proximity = T)
+(z0 <- table(df_training$label, predict(model_rf, df_training)))
+(E0 <- (sum(z0) - sum(diag(z0))) / sum(z0))
+#par(mfrow = c(1, 1))
+#for(i in 1:4) barplot(t(importance(model_rf))[i, ], cex.names = 0.5)
+# predict(model_rf, df_training, type = "prob")
+# pred <- prediction(predict(model_rf, df_training), df_training$label)
+# perf <- performance(pred,"tpr","fpr")
+# plot(perf)
+(z1 <- table(df_validating$label, predict(model_rf, df_validating)))
+(E1 <- (sum(z1) - sum(diag(z1))) / sum(z1))
+
+(z2 <- table(df_test$label, predict(model_rf, df_test)))
+(E2 <- (sum(z2) - sum(diag(z2))) / sum(z2))
+
+#confusionMatrix(df_test$label, predict(model_rf, df_test))
+
+save(model_rf, file='model_rf.RData')
+
+
+# ROC curve
+library(pROC)
+df_training1 <- mutate(df_training, label = as.factor(ifelse(label == 0, 0, 3)))
+df_training1
+
+df_training2 <- mutate(df_training, label = as.factor(ifelse(label == 1, 1, 3)))
+df_training2
+
+df_training3 <- mutate(df_training, label = as.factor(ifelse(label == 2, 2, 3)))
+df_training3
+
+df_test1 <- mutate(df_test, label = as.factor(ifelse(label == 0, 0, 3)))
+df_test1
+
+df_test2 <- mutate(df_test, label = as.factor(ifelse(label == 1, 1, 3)))
+df_test2
+
+df_test3 <- mutate(df_test, label = as.factor(ifelse(label == 2, 2, 3)))
+df_test3
+
+model_svm1 <- svm(select(df_training1, -label), df_training1$label, probability = T)
+model_svm2 <- svm(select(df_training2, -label), df_training2$label, probability = T)
+model_svm3 <- svm(select(df_training3, -label), df_training3$label, probability = T)
+
+roc1 <- roc(df_test1$label, attr(predict(model_svm1, select(df_test1, -label), probability = T), "prob")[, 2])
+roc2 <- roc(df_test2$label, attr(predict(model_svm2, select(df_test2, -label), probability = T), "prob")[, 2])
+roc3 <- roc(df_test3$label, attr(predict(model_svm3, select(df_test3, -label), probability = T), "prob")[, 2])
+plot(roc1, col="blue")
+plot.roc(roc2, add=TRUE, col="red")
+plot.roc(roc3, add=TRUE, col="green")
+legend("topright", legend = c("0", "1", "2"), col = c("blue", "red", "green"), lty = 1, lwd = 2)
+
+
+
+
+model_rf1 <- randomForest(label ~ ., data = df_training1, importance = T, proximity = T)
+model_rf2 <- randomForest(label ~ ., data = df_training2, importance = T, proximity = T)
+model_rf3 <- randomForest(label ~ ., data = df_training3, importance = T, proximity = T)
+
+roc1 <- roc(df_test1$label, predict(model_rf1, df_test1, type = "prob")[,2])
+roc2 <- roc(df_test2$label, predict(model_rf2, df_test2, type = "prob")[,2])
+roc3 <- roc(df_test3$label, predict(model_rf3, df_test3, type = "prob")[,2])
+plot(roc1, col="blue")
+plot.roc(roc2, add=TRUE, col="red")
+plot.roc(roc3, add=TRUE, col="green")
+legend("topright", legend = c("0", "1", "2"), col = c("blue", "red", "green"), lty = 1, lwd = 2)
+
+
+
+# library(caret)
+# confusionMatrix(df_test$label, predict(model_rf, df_test))
+
+
+
+
+
+l <- MASS::lda(label ~ ., df_training)
+table(df_training$label, predict(l, df_training)$class)
+table(df_test$label, predict(l, df_test)$class)
+save(l, file='lda.RData')
+#confusionMatrix(df_training$label, predict(l, df_training)$class)
+#confusionMatrix(df_validating$label, predict(l, df_validating)$class)
+#confusionMatrix(df_test$label, predict(l, df_test)$class)
+
+
+model_lda1 <- MASS::lda(label ~ ., data = df_training1)
+model_lda2 <- MASS::lda(label ~ ., data = df_training2)
+model_lda3 <- MASS::lda(label ~ ., data = df_training3)
+
+roc1 <- roc(df_test1$label, predict(model_lda1, df_test1)$posterior[, 1])
+roc2 <- roc(df_test2$label, predict(model_lda2, df_test2)$posterior[, 1])
+roc3 <- roc(df_test3$label, predict(model_lda3, df_test3)$posterior[, 1])
+plot(roc1, col="blue")
+plot.roc(roc2, add=TRUE, col="red")
+plot.roc(roc3, add=TRUE, col="green",print.auc=TRUE)
+legend("topright", legend = c("0", "1", "2"), col = c("blue", "red", "green"), lty = 1, lwd = 2)
