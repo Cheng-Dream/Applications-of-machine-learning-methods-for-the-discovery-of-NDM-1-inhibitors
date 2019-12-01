@@ -13,11 +13,13 @@ xulie=data["SMILES"]
 xingzhi=data["properties"]
 label=data["labels"]
 
-xulie=np.asarray(xulie)
-xingzhi=np.asarray(xingzhi)
-label=np.asarray(label)
 
-
+index = ([i for i in range(len(xulie))])
+np.random.shuffle(index)
+index=np.array(index)
+xulie= np.array(xulie)[index]
+xingzhi= np.array(xingzhi)[index]
+label=np.array(label)[index]
 
 test_x1=xulie[:250]
 test_x2=xingzhi[:250]
@@ -58,22 +60,13 @@ def multi_input_model():
     xulie_input= Input(shape=(550,101), name='input1')
     xingzhi_input= Input(shape=(550,101), name='input2')
 
-    # x1 = layers.Conv1D(32, 7, activation="relu")(xulie_input)
-    # x1 = layers.MaxPool1D(5)(x1)
-    # x1 = layers.Dropout(0.5)(x1)
-    # x1 = layers.Conv1D(32, 7, activation="relu")(x1)
-    # x1 = layers.MaxPool1D(5)(x1)
-    # x1 = layers.Dropout(0.5)(x1)
+    
     x1 = layers.GRU(32,return_sequences=True,dropout=0.1,activation="relu")(xulie_input)
+    x1 = layers.GRU(32,return_sequences=True,dropout=0.1,activation="relu")(x1)
 
 
 
-    # x1 = layers.Conv1D(32, 7, activation="relu")(x1)
-    # x1 = layers.MaxPool1D(5)(x1)
-    # x1 = layers.Dropout(0.5)(x1)
-    # x2 = layers.Flatten()(x2)
-    # x1 = layers.GRU(64,dropout=0.2,recurrent_dropout=0.2)(xulie_input)
-    # x1 = layers.GRU(32,dropout=0.2,recurrent_dropout=0.5)(x1)
+ 
 
     x2 = layers.Conv1D(32, 7, activation="relu")(xingzhi_input)
     x2 = layers.MaxPool1D(5)(x2)
@@ -81,14 +74,9 @@ def multi_input_model():
     x2 = layers.Conv1D(32, 7, activation="relu")(x2)
     x2 = layers.MaxPool1D(5)(x2)
     x2 = layers.Dropout(0.5)(x2)
-    # x2 = layers.Conv1D(32, 7, activation="relu")(x2)
-    # x2 = layers.MaxPool1D(5)(x2)
-    # x2 = layers.Dropout(0.5)(x2)
-    # x2 = layers.Flatten()(x2)
-
+  
     x = layers.concatenate([x1, x2],axis=1)
     x = layers.Flatten()(x)
-    #x = layers.GRU(32, dropout=0.1, recurrent_dropout= 0.5)(x)
     x = layers.Dense(16, activation='relu')(x)
 
     output = layers.Dense(3, activation='softmax', name='output')(x)
@@ -105,17 +93,10 @@ train_scores=[]
 
 
 
-# network.add(layers.Conv1D(128, 7, activation="relu"))
-#     network.add(layers.MaxPool1D(5))
-#     network.add(layers.Dropout(0.5))
-#     network.add(layers.Conv1D(64, 7, activation="relu"))
-#     network.add(layers.MaxPool1D(5))
-#     network.add(layers.Flatten())
-
 g=[]
 k=5
 num_val_samples1=len(actural_train_val_x1)//k
-# num_val_samples2=len(actural_train_val_x2)//k
+
 num_epochs=50
 for i in range(k):
     print("processing fold #",i)
